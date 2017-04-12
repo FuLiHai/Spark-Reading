@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#
+# Shell script for starting the Spark Shell REPL
+
+cygwin=false
+case "`uname`" in
+  CYGWIN*) cygwin=true;;
+esac
+# uname可以查看操作系统的名字，
+# 直接输入uname，一般显示Linux，
+# 使用uname -r 可以查看内核版本；
+# 使用uname -a 可以查看所有的信息
+# 详情参看 man uname
+
+# Enter posix mode for bash
+# 切换shell标准，set -o posix 是切换成posix 1003.2标准
+# Posix : Portable Operating System Interface of Unix
+set -o posix
+
+
+######## 条件表达式
+
+# 文件表达式
+# if [ -f  file ]    如果文件存在
+# if [ -d ...   ]    如果目录存在
+# if [ -s file  ]    如果文件存在且非空 
+# if [ -r file  ]    如果文件存在且可读
+# if [ -w file  ]    如果文件存在且可写
+# if [ -x file  ]    如果文件存在且可执行   
+
+# 整数变量表达式
+# if [ int1 -eq int2 ]    如果int1等于int2   
+# if [ int1 -ne int2 ]    如果不等于    
+# if [ int1 -ge int2 ]    如果>=
+# if [ int1 -gt int2 ]    如果>
+# if [ int1 -le int2 ]    如果<=
+# if [ int1 -lt int2 ]    如果<
+   
+
+#    字符串变量表达式
+# If  [ $a = $b ]                 如果string1等于string2,字符串允许使用赋值号做等号
+# if  [ $string1 !=  $string2 ]   如果string1不等于string2       
+# if  [ -n $string  ]             如果string 非空(非0），返回0(true)  
+# if  [ -z $string  ]             如果string 为空
+# if  [ $sting ]                  如果string 非空，返回0 (和-n类似)    
+
+# 如果${SPARK_HOME}环境变量不存在，则直接赋值成当前目录的父目录
+
+# dirname是显示某个文件所在的目录
+# [root@localnode3 test]# dirname ../oozie-work/10-25/oozie-parent.xml
+# ../oozie-work/10-25
+# [root@localnode3 test]# pwd
+# /home/xinghl/test
+if [ -z "${SPARK_HOME}" ]; then
+  export SPARK_HOME="$(cd "`dirname "$0"`"/..; pwd)"
+fi
+
+export _SPARK_CMD_USAGE="Usage: ./bin/spark-shell [options]"
+
+# SPARK-4161: scala does not assume use of the java classpath,
+# so we need to add the "-Dscala.usejavacp=true" flag manually. We
+# do this specifically for the Spark shell because the scala REPL
+# has its own class loader, and any additional classpath specified
+# through spark.driver.extraClassPath is not automatically propagated.
+SPARK_SUBMIT_OPTS="$SPARK_SUBMIT_OPTS -Dscala.usejavacp=true"
+
+# $# 是传给脚本的参数个数
+# $0 是脚本本身的名字
+# $1 是传递给该shell脚本的第一个参数
+# $2 是传递给该shell脚本的第二个参数
+# $@ 是传给脚本的所有参数的列表
+# $* 是以一个单字符串显示所有向脚本传递的参数，与位置变量不同，参数可超过9个
+# $$ 是脚本运行的当前进程ID号
+# $? 是显示最后命令的退出状态，0表示没有错误，其他表示有错误
+
+function main() {
+  if $cygwin; then
+    # Workaround for issue involving JLine and Cygwin
+    # (see http://sourceforge.net/p/jline/bugs/40/).
+    # If you're using the Mintty terminal emulator in Cygwin, may need to set the
+    # "Backspace sends ^H" setting in "Keys" section of the Mintty options
+    # (see https://github.com/sbt/sbt/issues/562).
+    stty -icanon min 1 -echo > /dev/null 2>&1
+    export SPARK_SUBMIT_OPTS="$SPARK_SUBMIT_OPTS -Djline.terminal=unix"
+    "${SPARK_HOME}"/bin/spark-submit --class org.apache.spark.repl.Main --name "Spark shell" "$@"
+    stty icanon echo > /dev/null 2>&1
+  else
+    export SPARK_SUBMIT_OPTS
+    "${SPARK_HOME}"/bin/spark-submit --class org.apache.spark.repl.Main --name "Spark shell" "$@"
+  fi
+}
+
+# Copy restore-TTY-on-exit functions from Scala script so spark-shell exits properly even in
+# binary distribution of Spark where Scala is not installed
+exit_status=127
+saved_stty=""
+
+# restore stty settings (echo in particular)
+function restoreSttySettings() {
+  stty $saved_stty
+  saved_stty=""
+}
+
+function onExit() {
+  if [[ "$saved_stty" != "" ]]; then
+    restoreSttySettings
+  fi
+  exit $exit_status
+}
+
+# to reenable echo if we are interrupted before completing.
+trap onExit INT
+
+# save terminal settings
+saved_stty=$(stty -g 2>/dev/null)
+# clear on error so we don't later try to restore them
+if [[ ! $? ]]; then
+  saved_stty=""
+fi
+
+main "$@"
+
+# record the exit status lest it be overwritten:
+# then reenable echo and propagate the code.
+exit_status=$?
+onExit
+
