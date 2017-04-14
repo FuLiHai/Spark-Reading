@@ -32,6 +32,13 @@ import org.apache.spark.util.random.{XORShiftRandom, SamplingUtils}
 /**
  * An object that defines how the elements in a key-value pair RDD are partitioned by key.
  * Maps each key to a partition ID, from 0 to `numPartitions - 1`.
+ *
+ * 对象中的元素会以键值对的形式存储，key会通过一定的规则映射到numPartitions上，范围是(0,p-1)
+ *
+ * 涉及的方法有：combineByKey、aggregateByKey、groupByKey、reduceByKey、cogroup、join、leftOuterJoin、rightOuterJoin、fullOuterJoin
+ * 最开始创建RDD的时候，Partition的信息是none，直到有KV信息的时候，才会创建
+ *
+ * 网上有人说：不要使用Array类型作为key-value数据的key,HashPartitioner不能以Array为Key进行分区.  不知道什么原因？？？
  */
 abstract class Partitioner extends Serializable {
   def numPartitions: Int
@@ -80,11 +87,13 @@ class HashPartitioner(partitions: Int) extends Partitioner {
 
   def numPartitions: Int = partitions
 
+  // 通过key计算其HashCode，并根据分区数取模。如果结果小于0，直接加上分区数。
   def getPartition(key: Any): Int = key match {
     case null => 0
     case _ => Utils.nonNegativeMod(key.hashCode, numPartitions)
   }
 
+  // 对比两个分区器是否相同，直接对比其分区个数就行
   override def equals(other: Any): Boolean = other match {
     case h: HashPartitioner =>
       h.numPartitions == numPartitions
@@ -102,6 +111,15 @@ class HashPartitioner(partitions: Int) extends Partitioner {
  * Note that the actual number of partitions created by the RangePartitioner might not be the same
  * as the `partitions` parameter, in the case where the number of sampled records is less than
  * the value of `partitions`.
+ *
+ * 把一定范围内的数据映射到某个分区，所以边界很重要
+ *
+ * 关于分区，可以参考下面三篇博客：
+ *
+ * 1 Spark自定义分区：https://www.iteblog.com/archives/1368.html
+ * 2 Spark HashParitioner和RangeParitioner： https://www.iteblog.com/archives/1522.ht       ml
+ * 3 水塘抽样：https://www.iteblog.com/archives/1525.html
+ *
  */
 class RangePartitioner[K : Ordering : ClassTag, V](
     partitions: Int,
@@ -120,18 +138,26 @@ class RangePartitioner[K : Ordering : ClassTag, V](
       Array.empty
     } else {
       // This is the sample size we need to have roughly balanced output partitions, capped at 1M.
+      // 最大采样数量不能超过1M。比如，如果分区是5，采样数为100
       val sampleSize = math.min(20.0 * partitions, 1e6)
       // Assume the input partitions are roughly balanced and over-sample a little bit.
+      // 每个分区的采样数为平均值的三倍，避免数据倾斜造成的数据量过少
       val sampleSizePerPartition = math.ceil(3.0 * sampleSize / rdd.partitions.size).toInt
+
+      // 真正的采样算法(参数1:rdd的key数组， 采样个数)
       val (numItems, sketched) = RangePartitioner.sketch(rdd.map(_._1), sampleSizePerPartition)
       if (numItems == 0L) {
         Array.empty
       } else {
         // If a partition contains much more than the average number of items, we re-sample from it
         // to ensure that enough items are collected from that partition.
+        // 如果有的分区包含的数量远超过平均值，那么需要对它重新采样。每个分区的采样数/采样返回的总的记录数
         val fraction = math.min(sampleSize / math.max(numItems, 1L), 1.0)
+        //保存有效的采样数
         val candidates = ArrayBuffer.empty[(K, Float)]
+        //保存数据倾斜导致的采样数过多的信息
         val imbalancedPartitions = mutable.Set.empty[Int]
+
         sketched.foreach { case (idx, n, sample) =>
           if (fraction * n > sampleSizePerPartition) {
             imbalancedPartitions += idx
@@ -147,6 +173,7 @@ class RangePartitioner[K : Ordering : ClassTag, V](
           // Re-sample imbalanced partitions with the desired sampling probability.
           val imbalanced = new PartitionPruningRDD(rdd.map(_._1), imbalancedPartitions.contains)
           val seed = byteswap32(-rdd.id - 1)
+          //基于RDD获取采样数据
           val reSampled = imbalanced.sample(withReplacement = false, fraction, seed).collect()
           val weight = (1.0 / fraction).toFloat
           candidates ++= reSampled.map(x => (x, weight))
@@ -260,15 +287,19 @@ private[spark] object RangePartitioner {
       val seed = byteswap32(idx ^ (shift << 16))
       val (sample, n) = SamplingUtils.reservoirSampleAndCount(
         iter, sampleSizePerPartition, seed)
+      //包装成三元组，（索引号，分区的内容个数，抽样的内容）
       Iterator((idx, n, sample))
     }.collect()
     val numItems = sketched.map(_._2).sum
+    //返回（数据条数，（索引号，分区的内容个数，抽样的内容））
     (numItems, sketched)
   }
 
   /**
    * Determines the bounds for range partitioning from candidates with weights indicating how many
    * items each represents. Usually this is 1 over the probability used to sample this candidate.
+   *
+   * 通过candidates中保存的数据，计算每个分区代表的数据范围。
    *
    * @param candidates unordered candidates with weights
    * @param partitions number of partitions
@@ -278,6 +309,7 @@ private[spark] object RangePartitioner {
       candidates: ArrayBuffer[(K, Float)],
       partitions: Int): Array[K] = {
     val ordering = implicitly[Ordering[K]]
+    // 数据格式为（key，权重）
     val ordered = candidates.sortBy(_._1)
     val numCandidates = ordered.size
     val sumWeights = ordered.map(_._2.toDouble).sum

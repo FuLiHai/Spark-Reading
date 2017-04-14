@@ -454,6 +454,9 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     listenerBus.addListener(jobProgressListener)
 
     // Create the Spark execution environment (cache, map output tracker, etc)
+    /**
+      *
+      */
     _env = createSparkEnv(_conf, isLocal, listenerBus)
     SparkEnv.set(_env)
 

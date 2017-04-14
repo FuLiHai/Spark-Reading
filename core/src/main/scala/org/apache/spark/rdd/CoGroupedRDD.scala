@@ -128,6 +128,9 @@ class CoGroupedRDD[K: ClassTag](
   override val partitioner: Some[Partitioner] = Some(part)
 
   override def compute(s: Partition, context: TaskContext): Iterator[(K, Array[Iterable[_]])] = {
+    //获取RDD的依赖，如果是宽依赖，需要shuffle
+
+
     val split = s.asInstanceOf[CoGroupPartition]
     val numRdds = dependencies.length
 

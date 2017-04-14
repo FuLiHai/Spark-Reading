@@ -779,9 +779,11 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
       other3: RDD[(K, W3)],
       partitioner: Partitioner)
       : RDD[(K, (Iterable[V], Iterable[W1], Iterable[W2], Iterable[W3]))] = self.withScope {
+
     if (partitioner.isInstanceOf[HashPartitioner] && keyClass.isArray) {
       throw new SparkException("Default partitioner cannot partition array keys.")
     }
+
     val cg = new CoGroupedRDD[K](Seq(self, other1, other2, other3), partitioner)
     cg.mapValues { case Array(vs, w1s, w2s, w3s) =>
        (vs.asInstanceOf[Iterable[V]],
@@ -797,9 +799,12 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    */
   def cogroup[W](other: RDD[(K, W)], partitioner: Partitioner)
       : RDD[(K, (Iterable[V], Iterable[W]))] = self.withScope {
+    // 判断默认是否为HashPartitioner
+    // 也就是说pairrdd通过自定义partitioner分区，那么在cogroup操作，也需要使用这个分区规则才行
     if (partitioner.isInstanceOf[HashPartitioner] && keyClass.isArray) {
       throw new SparkException("Default partitioner cannot partition array keys.")
     }
+    // 创建
     val cg = new CoGroupedRDD[K](Seq(self, other), partitioner)
     cg.mapValues { case Array(vs, w1s) =>
       (vs.asInstanceOf[Iterable[V]], w1s.asInstanceOf[Iterable[W]])
@@ -812,6 +817,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    */
   def cogroup[W1, W2](other1: RDD[(K, W1)], other2: RDD[(K, W2)], partitioner: Partitioner)
       : RDD[(K, (Iterable[V], Iterable[W1], Iterable[W2]))] = self.withScope {
+
     if (partitioner.isInstanceOf[HashPartitioner] && keyClass.isArray) {
       throw new SparkException("Default partitioner cannot partition array keys.")
     }
