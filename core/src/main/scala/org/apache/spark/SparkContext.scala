@@ -69,16 +69,17 @@ import org.apache.spark.util._
 /**
  * Main entry point for Spark functionality. A SparkContext represents the connection to a Spark
  * cluster, and can be used to create RDDs, accumulators and broadcast variables on that cluster.
+ * SparkContext是spark功能的入口，它提供了集群的连接，RDD的创建，累加器和关闭变量的管理创建等。
  *
  * Only one SparkContext may be active per JVM.  You must `stop()` the active SparkContext before
  * creating a new one.  This limitation may eventually be removed; see SPARK-2243 for more details.
+ * 每个JVM只能创建一个sparkcontext,你必须在调用stop()之后，才能创建新的。
  *
  * @param config a Spark Config object describing the application configuration. Any settings in
  *   this config overrides the default configs as well as system properties.
  *
- *   Spark应用开发的主要接口，是上层与底层的中转站
- *
- *   主要涉及以下内容：SparkEnv,DAGScheduler,TaskScheduler,SchedulerBackend,WebUI
+ * Spark应用开发的主要接口，是上层与底层的中转站
+ * 主要涉及以下内容：SparkEnv,DAGScheduler,TaskScheduler,SchedulerBackend,WebUI
  */
 class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationClient {
 
@@ -500,6 +501,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       files.foreach(addFile)
     }
 
+    // 默认是1G大小
     _executorMemory = _conf.getOption("spark.executor.memory")
       .orElse(Option(System.getenv("SPARK_EXECUTOR_MEMORY")))
       .orElse(Option(System.getenv("SPARK_MEM"))
