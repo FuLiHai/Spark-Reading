@@ -75,6 +75,10 @@ import org.apache.spark.util._
  *
  * @param config a Spark Config object describing the application configuration. Any settings in
  *   this config overrides the default configs as well as system properties.
+ *
+ *   Spark应用开发的主要接口，是上层与底层的中转站
+ *
+ *   主要涉及以下内容：SparkEnv,DAGScheduler,TaskScheduler,SchedulerBackend,WebUI
  */
 class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationClient {
 
@@ -455,7 +459,9 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
     // Create the Spark execution environment (cache, map output tracker, etc)
     /**
+      * 先初始化sparkconf,在创建SparkEnv
       *
+      * 如果master包含Local或者以local[开头，就是本地模式
       */
     _env = createSparkEnv(_conf, isLocal, listenerBus)
     SparkEnv.set(_env)
@@ -522,6 +528,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       HeartbeatReceiver.ENDPOINT_NAME, new HeartbeatReceiver(this))
 
     // Create and start the scheduler
+    // 创建调度器
     val (sched, ts) = SparkContext.createTaskScheduler(this, master)
     _schedulerBackend = sched
     _taskScheduler = ts
@@ -530,6 +537,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
     // start TaskScheduler after taskScheduler sets DAGScheduler reference in DAGScheduler's
     // constructor
+    // 启动调度器
     _taskScheduler.start()
 
     _applicationId = _taskScheduler.applicationId()
@@ -2591,6 +2599,8 @@ object SparkContext extends Logging {
   /**
    * Create a task scheduler based on a given master URL.
    * Return a 2-tuple of the scheduler backend and the task scheduler.
+   *
+   * 会根据Mster的不同创建不同的SchedulerBackend
    */
   private def createTaskScheduler(
       sc: SparkContext,
@@ -2601,12 +2611,14 @@ object SparkContext extends Logging {
     val MAX_LOCAL_TASK_FAILURES = 1
 
     master match {
+        // local模式
       case "local" =>
         val scheduler = new TaskSchedulerImpl(sc, MAX_LOCAL_TASK_FAILURES, isLocal = true)
         val backend = new LocalBackend(sc.getConf, scheduler, 1)
         scheduler.initialize(backend)
         (backend, scheduler)
 
+        //val LOCAL_N_REGEX = """local\[([0-9]+|\*)\]""".r
       case LOCAL_N_REGEX(threads) =>
         def localCpuCount: Int = Runtime.getRuntime.availableProcessors()
         // local[*] estimates the number of cores on the machine; local[N] uses exactly N threads.
@@ -2619,6 +2631,7 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+      // val LOCAL_N_FAILURES_REGEX = """local\[([0-9]+|\*)\s*,\s*([0-9]+)\]""".r
       case LOCAL_N_FAILURES_REGEX(threads, maxFailures) =>
         def localCpuCount: Int = Runtime.getRuntime.availableProcessors()
         // local[*, M] means the number of cores on the computer with M failures
@@ -2629,13 +2642,14 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+      //        val SPARK_REGEX = """spark://(.*)""".r
       case SPARK_REGEX(sparkUrl) =>
         val scheduler = new TaskSchedulerImpl(sc)
         val masterUrls = sparkUrl.split(",").map("spark://" + _)
         val backend = new SparkDeploySchedulerBackend(scheduler, sc, masterUrls)
         scheduler.initialize(backend)
         (backend, scheduler)
-
+      //        val LOCAL_CLUSTER_REGEX = """local-cluster\[\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*]""".r
       case LOCAL_CLUSTER_REGEX(numSlaves, coresPerSlave, memoryPerSlave) =>
         // Check to make sure memory requested <= memoryPerSlave. Otherwise Spark will just hang.
         val memoryPerSlaveInt = memoryPerSlave.toInt
@@ -2710,7 +2724,7 @@ object SparkContext extends Logging {
 
         scheduler.initialize(backend)
         (backend, scheduler)
-
+      //        val MESOS_REGEX = """mesos://(.*)""".r
       case MESOS_REGEX(mesosUrl) =>
         MesosNativeLibrary.load()
         val scheduler = new TaskSchedulerImpl(sc)
@@ -2723,6 +2737,7 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+      //        val SIMR_REGEX = """simr://(.*)""".r
       case SIMR_REGEX(simrUrl) =>
         val scheduler = new TaskSchedulerImpl(sc)
         val backend = new SimrSchedulerBackend(scheduler, sc, simrUrl)

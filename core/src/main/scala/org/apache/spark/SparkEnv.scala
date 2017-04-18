@@ -59,18 +59,19 @@ class SparkEnv (
     _actorSystem: ActorSystem, // TODO Remove actorSystem
     val serializer: Serializer,
     val closureSerializer: Serializer,
-    val cacheManager: CacheManager,
-    val mapOutputTracker: MapOutputTracker,
-    val shuffleManager: ShuffleManager,
-    val broadcastManager: BroadcastManager,
+    val cacheManager: CacheManager,                         //存储中间的计算结果
+    val mapOutputTracker: MapOutputTracker,                 //缓存mapstatus信息
+    val shuffleManager: ShuffleManager,                     //路由维护表
+    val broadcastManager: BroadcastManager,                 //广播
     val blockTransferService: BlockTransferService,
-    val blockManager: BlockManager,
-    val securityManager: SecurityManager,
-    val sparkFilesDir: String,
-    val metricsSystem: MetricsSystem,
+    val blockManager: BlockManager,                         //块管理
+    val securityManager: SecurityManager,                   //安全管理
+    val sparkFilesDir: String,                              //文件存储目录
+    val metricsSystem: MetricsSystem,                       //测量
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
-    val conf: SparkConf) extends Logging {
+    val conf: SparkConf                                     //配置文件
+               ) extends Logging {
 
   // TODO Remove actorSystem
   @deprecated("Actor system is no longer supported as of 1.4.0", "1.4.0")

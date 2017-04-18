@@ -70,7 +70,7 @@ private[spark] object SamplingUtils {
         }
         l += 1
       }
-      (reservoir, l)
+      (reservoir, zl)
     }
   }
 
