@@ -80,7 +80,7 @@ class JobScheduler(val ssc: StreamingContext) extends Logging {
     receiverTracker = new ReceiverTracker(ssc)
     inputInfoTracker = new InputInfoTracker(ssc)
     receiverTracker.start()
-    jobGenerator.start()
+    jobGenerator.start() //spark streaming 启动
     logInfo("Started JobScheduler")
   }
 

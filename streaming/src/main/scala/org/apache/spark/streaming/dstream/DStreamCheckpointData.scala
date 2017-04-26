@@ -103,6 +103,8 @@ class DStreamCheckpointData[T: ClassTag] (dstream: DStream[T])
    * Restore the checkpoint data. This gets called once when the DStream graph
    * (along with its DStreams) are being restored from a graph checkpoint file.
    * Default implementation restores the RDDs from their checkpoint files.
+   *
+   * 恢复的时候根据保存的内容，恢复RDD
    */
   def restore() {
     // Create RDDs from the checkpoint data

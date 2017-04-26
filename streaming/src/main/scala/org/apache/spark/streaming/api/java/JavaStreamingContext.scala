@@ -52,6 +52,9 @@ import org.apache.hadoop.conf.Configuration
  * computation can be started and stopped using `context.start()` and `context.stop()`,
  * respectively. `context.awaitTermination()` allows the current thread to wait for the
  * termination of a context by `stop()` or by an exception.
+  *
+  * Java版的StreamingContext，提供了创建JavaDStream和JavaPairDStream的方法。
+  * 在创建和转换dstream时，可以使用start和stop方法，使用awaitTermination允许当前的线程等待context的终止或者stop
  */
 class JavaStreamingContext(val ssc: StreamingContext) extends Closeable {
 
@@ -702,6 +705,7 @@ object JavaStreamingContext {
       checkpointPath: String,
       factory: JavaStreamingContextFactory
     ): JavaStreamingContext = {
+    // 其实调用的是StreamingContext的getOrCreate方法，然后再包装成JavaStreamingContext
     val ssc = StreamingContext.getOrCreate(checkpointPath, () => {
       factory.create.ssc
     })

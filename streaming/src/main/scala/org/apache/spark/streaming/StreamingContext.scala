@@ -133,6 +133,7 @@ class StreamingContext private[streaming] (
 
   private[streaming] val isCheckpointPresent = (cp_ != null)
 
+  // 调用getOrCreate创建SparkContext
   private[streaming] val sc: SparkContext = {
     if (sc_ != null) {
       sc_
@@ -152,10 +153,11 @@ class StreamingContext private[streaming] (
 
   private[streaming] val env = sc.env
 
+  // 恢复DStreamGraph
   private[streaming] val graph: DStreamGraph = {
     if (isCheckpointPresent) {
       cp_.graph.setContext(this)
-      cp_.graph.restoreCheckpointData()
+      cp_.graph.restoreCheckpointData() //恢复数据
       cp_.graph
     } else {
       require(batchDur_ != null, "Batch duration for StreamingContext cannot be null")
@@ -319,9 +321,12 @@ class StreamingContext private[streaming] (
    * Create a input stream from TCP source hostname:port. Data is received using
    * a TCP socket and the receive bytes is interpreted as UTF8 encoded `\n` delimited
    * lines.
-   * @param hostname      Hostname to connect to for receiving data
-   * @param port          Port to connect to for receiving data
-   * @param storageLevel  Storage level to use for storing the received objects
+    *
+    * 创建tcp的流，接收信息是UTF8并且\n进行分隔的数据
+    *
+   * @param hostname      Hostname to connect to for receiving data             连接的主机名
+   * @param port          Port to connect to for receiving data                 连接的端口
+   * @param storageLevel  Storage level to use for storing the received objects 接收的信息存储格式，默认是MEMORY_AND_DISK_SER_2
    *                      (default: StorageLevel.MEMORY_AND_DISK_SER_2)
    */
   def socketTextStream(
@@ -859,6 +864,8 @@ object StreamingContext extends Logging {
       hadoopConf: Configuration = SparkHadoopUtil.get.conf,
       createOnError: Boolean = false
     ): StreamingContext = {
+
+    // 读取配置，如果配置为null，那么这直接嗲用creatingFunc，新建一个StreamingContext
     val checkpointOption = CheckpointReader.read(
       checkpointPath, new SparkConf(), hadoopConf, createOnError)
     checkpointOption.map(new StreamingContext(null, _, null)).getOrElse(creatingFunc())

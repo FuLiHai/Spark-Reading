@@ -253,7 +253,7 @@ class JobGenerator(jobScheduler: JobScheduler) extends Logging {
       case Failure(e) =>
         jobScheduler.reportError("Error generating jobs for time " + time, e)
     }
-    eventLoop.post(DoCheckpoint(time, clearCheckpointDataLater = false))
+    eventLoop.post(DoCheckpoint(time, clearCheckpointDataLater = false)) //这里会进行保存
   }
 
   /** Clear DStream metadata for the given `time`. */

@@ -327,6 +327,9 @@ object CheckpointReader extends Logging {
    * files, then return None, else try to return the latest valid checkpoint object. If no
    * checkpoint files could be read correctly, then return None (if ignoreReadError = true),
    * or throw exception (if ignoreReadError = false).
+   *
+   * 读取 checkpoint内提供的文件。如果没有文件读取，那么直接返回none，后则的花，返回最新版本的checkpoint对象。
+   * 如果 没有正确的对象文件可以读取，那么也会返回none。此时如果有ignoreReadError=false,就会抛出异常。
    */
   def read(
       checkpointDir: String,
@@ -339,18 +342,21 @@ object CheckpointReader extends Logging {
     def fs: FileSystem = checkpointPath.getFileSystem(hadoopConf)
 
     // Try to find the checkpoint files
+    // 寻找checkpoint文件，并且反向排序
     val checkpointFiles = Checkpoint.getCheckpointFiles(checkpointDir, Some(fs)).reverse
     if (checkpointFiles.isEmpty) {
       return None
     }
 
     // Try to read the checkpoint files in the order
+    // 按照顺序从新到旧，依次访问序列化的文件
     logInfo("Checkpoint files found: " + checkpointFiles.mkString(","))
     var readError: Exception = null
     checkpointFiles.foreach(file => {
       logInfo("Attempting to load checkpoint from file " + file)
       try {
         val fis = fs.open(file)
+        // 根据sparkConf来反序列化？
         val cp = Checkpoint.deserialize(fis, conf)
         logInfo("Checkpoint successfully loaded from file " + file)
         logInfo("Checkpoint was generated at time " + cp.checkpointTime)
