@@ -56,11 +56,13 @@ import org.apache.spark.util.{AsynchronousListenerBus, CallSite, ShutdownHookMan
  * using `context.start()` and `context.stop()`, respectively.
  * `context.awaitTermination()` allows the current thread to wait for the termination
  * of the context by `stop()` or by an exception.
+ *
+ * 主要的三个成员变量：JobScheduler\DStreamGraph\StreamingTab
  */
 class StreamingContext private[streaming] (
-    sc_ : SparkContext,
-    cp_ : Checkpoint,
-    batchDur_ : Duration
+    sc_ : SparkContext,   //任务最终通过SparkContext提交到集群
+    cp_ : Checkpoint,     //默认是null
+    batchDur_ : Duration  // 窗口的时间
   ) extends Logging {
 
   /**
@@ -593,7 +595,7 @@ class StreamingContext private[streaming] (
 
   /**
    * Start the execution of the streams.
-   *
+   * stream的入口，开始执行任务
    * @throws IllegalStateException if the StreamingContext is already stopped.
    */
   def start(): Unit = synchronized {
@@ -881,6 +883,7 @@ object StreamingContext extends Logging {
     new SparkContext(conf)
   }
 
+  // 创建StreamingSparkContext
   private[streaming] def createNewSparkContext(
       master: String,
       appName: String,

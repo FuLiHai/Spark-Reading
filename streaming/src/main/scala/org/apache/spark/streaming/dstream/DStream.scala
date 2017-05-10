@@ -675,6 +675,8 @@ abstract class DStream[T: ClassTag] (
   /**
    * Apply a function to each RDD in this DStream. This is an output operator, so
    * 'this' DStream will be registered as an output stream and therefore materialized.
+   * 对每个RDD应用方法，属于output操作
+   *
    * @param foreachFunc foreachRDD function
    * @param displayInnerRDDOps Whether the detailed callsites and scopes of the RDDs generated
    *                           in the `foreachFunc` to be displayed in the UI. If `false`, then
